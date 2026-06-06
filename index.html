@@ -1,0 +1,1340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KINETIC // GLOBAL AIRSPACE AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #050505;
+    --bg2: #0a0a0a;
+    --panel: rgba(10,10,10,0.82);
+    --border: rgba(255,255,255,0.08);
+    --border-bright: rgba(255,255,255,0.18);
+    --text: #ffffff;
+    --dim: rgba(255,255,255,0.45);
+    --green: #00ff66;
+    --cyan: #00f0ff;
+    --red: #ff3333;
+    --red-dim: rgba(255,51,51,0.18);
+    --green-dim: rgba(0,255,102,0.12);
+    --cyan-dim: rgba(0,240,255,0.12);
+    --font: 'JetBrains Mono', monospace;
+    --blur: blur(16px);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    overflow: hidden;
+    cursor: default;
+  }
+
+  /* DOT-MATRIX BACKGROUND */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px);
+    background-size: 28px 28px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ─── INTRO OVERLAY ─── */
+  #intro-overlay {
+    position: fixed; inset: 0; z-index: 9999;
+    background: #050505;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 32px;
+    transition: opacity 0.6s ease;
+  }
+  #intro-overlay.fade-out { opacity: 0; pointer-events: none; }
+
+  .split-flap-title {
+    display: flex; gap: 3px; align-items: center; flex-wrap: wrap;
+    justify-content: center;
+  }
+  .sf-char {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 36px;
+    background: #0f0f0f;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 3px;
+    font-size: 18px; font-weight: 700; letter-spacing: 0;
+    position: relative; overflow: hidden;
+    transition: color 0.06s;
+  }
+  .sf-char.space { background: transparent; border-color: transparent; width: 14px; }
+  .sf-char.slash { color: var(--green); }
+
+  .intro-log {
+    width: 540px; max-width: 90vw;
+    background: rgba(10,10,10,0.9);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 16px;
+    font-size: 10px;
+    color: var(--dim);
+    height: 130px;
+    overflow: hidden;
+    position: relative;
+  }
+  .intro-log-line {
+    line-height: 1.7;
+    animation: fadeInLine 0.15s ease forwards;
+    opacity: 0;
+  }
+  @keyframes fadeInLine { to { opacity: 1; } }
+  .log-green { color: var(--green); }
+  .log-cyan { color: var(--cyan); }
+  .log-red { color: var(--red); }
+
+  /* ─── MAIN LAYOUT ─── */
+  #app {
+    position: fixed; inset: 0; z-index: 1;
+    display: grid;
+    grid-template-columns: 260px 1fr 300px;
+    grid-template-rows: 48px 1fr 36px;
+    gap: 0;
+    opacity: 0;
+    transition: opacity 0.8s ease;
+  }
+  #app.visible { opacity: 1; }
+
+  /* TOPBAR */
+  #topbar {
+    grid-column: 1 / -1; grid-row: 1;
+    background: rgba(5,5,5,0.95);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center;
+    padding: 0 20px; gap: 24px;
+    backdrop-filter: var(--blur);
+    z-index: 10;
+  }
+  .topbar-logo {
+    font-size: 14px; font-weight: 800; letter-spacing: 4px;
+    color: var(--green);
+    text-shadow: 0 0 12px rgba(0,255,102,0.5);
+  }
+  .topbar-sep { width: 1px; height: 20px; background: var(--border-bright); }
+  .topbar-label { font-size: 10px; color: var(--dim); letter-spacing: 2px; }
+  .topbar-val { font-size: 11px; color: var(--text); }
+  .topbar-spacer { flex: 1; }
+  .status-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+    animation: pulse-dot 2s infinite;
+  }
+  @keyframes pulse-dot {
+    0%,100% { opacity: 1; } 50% { opacity: 0.4; }
+  }
+  .status-dot.red { background: var(--red); box-shadow: 0 0 10px var(--red); animation: pulse-red 0.4s infinite; }
+  @keyframes pulse-red { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+  #topbar-clock { font-size: 12px; color: var(--cyan); letter-spacing: 2px; }
+
+  /* LEFT SIDEBAR — Telemetry Stream */
+  #left-panel {
+    grid-column: 1; grid-row: 2;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    backdrop-filter: var(--blur);
+    display: flex; flex-direction: column;
+    overflow: hidden; z-index: 5;
+  }
+  .panel-header {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 9px; letter-spacing: 3px;
+    color: var(--dim); text-transform: uppercase;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .panel-header .dot { width:5px;height:5px;border-radius:50%;background:var(--green);box-shadow:0 0 4px var(--green); }
+  #telemetry-stream {
+    flex: 1; overflow-y: auto;
+    padding: 8px 14px;
+    font-size: 9px; line-height: 2;
+    color: var(--dim);
+  }
+  #telemetry-stream::-webkit-scrollbar { width: 3px; }
+  #telemetry-stream::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+  .tstream-line { animation: fadeInLine 0.2s ease forwards; opacity: 0; }
+  .tstream-line .ts { color: rgba(255,255,255,0.25); margin-right: 6px; }
+
+  /* Active flights list */
+  #active-flights {
+    border-top: 1px solid var(--border);
+    padding: 8px 0;
+  }
+  .flight-item {
+    padding: 6px 14px;
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .flight-item:hover { background: rgba(255,255,255,0.04); }
+  .flight-item.conflict { background: var(--red-dim); }
+  .flight-item.conflict .fi-id { color: var(--red); animation: blink 0.5s infinite; }
+  @keyframes blink { 0%,100%{opacity:1;}50%{opacity:0.2;} }
+  .fi-id { font-size: 11px; font-weight: 700; }
+  .fi-dest { font-size: 9px; color: var(--dim); }
+  .fi-status { font-size: 9px; padding: 2px 5px; border-radius: 2px; }
+  .fi-status.ok { color: var(--green); border: 1px solid rgba(0,255,102,0.3); }
+  .fi-status.alert { color: var(--red); border: 1px solid rgba(255,51,51,0.4); }
+  .fi-status.resolved { color: var(--cyan); border: 1px solid rgba(0,240,255,0.3); }
+
+  /* GLOBE CANVAS */
+  #globe-container {
+    grid-column: 2; grid-row: 2;
+    position: relative; overflow: hidden;
+  }
+  #globe-canvas {
+    width: 100%; height: 100%;
+    display: block;
+  }
+
+  /* CONFLICT MASTER HUD */
+  #conflict-hud {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(5,5,5,0.9);
+    border: 1px solid var(--red);
+    border-radius: 6px;
+    padding: 20px 30px;
+    text-align: center;
+    backdrop-filter: var(--blur);
+    box-shadow: 0 0 40px rgba(255,51,51,0.25), inset 0 0 20px rgba(255,51,51,0.04);
+    display: none; z-index: 20;
+    min-width: 420px;
+    animation: conflict-pulse 0.6s infinite;
+  }
+  @keyframes conflict-pulse {
+    0%,100% { box-shadow: 0 0 40px rgba(255,51,51,0.25), inset 0 0 20px rgba(255,51,51,0.04); }
+    50% { box-shadow: 0 0 80px rgba(255,51,51,0.5), inset 0 0 30px rgba(255,51,51,0.08); }
+  }
+  #conflict-hud.show { display: block; }
+  #conflict-hud.resolved {
+    border-color: var(--cyan);
+    animation: none;
+    box-shadow: 0 0 40px rgba(0,240,255,0.3);
+  }
+  .hud-label {
+    font-size: 9px; letter-spacing: 3px; color: var(--dim);
+    margin-bottom: 8px;
+  }
+  .hud-title {
+    font-size: 13px; font-weight: 800; color: var(--red);
+    letter-spacing: 1px; line-height: 1.4;
+    animation: text-flicker 0.5s infinite;
+  }
+  #conflict-hud.resolved .hud-title { color: var(--cyan); animation: none; }
+  @keyframes text-flicker { 0%,100%{opacity:1;}45%{opacity:0.7;}50%{opacity:1;}55%{opacity:0.8;} }
+  .hud-risk {
+    margin-top: 10px;
+    font-size: 28px; font-weight: 800;
+    color: var(--red);
+    text-shadow: 0 0 20px rgba(255,51,51,0.6);
+  }
+  #conflict-hud.resolved .hud-risk { color: var(--cyan); text-shadow: 0 0 20px rgba(0,240,255,0.6); font-size: 18px; }
+  .hud-sub { font-size: 10px; color: var(--dim); margin-top: 6px; }
+
+  /* HOVER HUD */
+  #hover-hud {
+    position: absolute;
+    background: rgba(8,8,8,0.94);
+    border: 1px solid var(--border-bright);
+    border-radius: 6px;
+    padding: 12px 16px;
+    font-size: 10px;
+    line-height: 1.9;
+    backdrop-filter: var(--blur);
+    pointer-events: none;
+    display: none;
+    z-index: 30;
+    min-width: 220px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  }
+  #hover-hud.show { display: block; }
+  .hh-row { display: flex; justify-content: space-between; gap: 16px; }
+  .hh-key { color: var(--dim); }
+  .hh-val { color: var(--text); font-weight: 600; }
+  .hh-title { font-size: 12px; font-weight: 800; color: var(--green); margin-bottom: 8px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+
+  /* RIGHT PANEL */
+  #right-panel {
+    grid-column: 3; grid-row: 2;
+    background: var(--panel);
+    border-left: 1px solid var(--border);
+    backdrop-filter: var(--blur);
+    display: flex; flex-direction: column;
+    overflow: hidden; z-index: 5;
+  }
+
+  /* AI EVASIVE PANEL */
+  #ai-panel {
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  #ai-panel.open { max-height: 340px; }
+  .ai-step {
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-size: 9px; line-height: 1.6;
+  }
+  .ai-step-num { color: var(--red); font-weight: 700; margin-right: 4px; }
+  .ai-step.done .ai-step-num { color: var(--cyan); }
+  .ai-step .ai-step-title { color: var(--text); font-weight: 600; }
+  .ai-step .ai-step-desc { color: var(--dim); margin-top: 2px; }
+  #execute-btn {
+    margin: 12px 14px;
+    padding: 10px 14px;
+    background: var(--red-dim);
+    border: 1px solid var(--red);
+    border-radius: 4px;
+    color: var(--red);
+    font-family: var(--font);
+    font-size: 10px; font-weight: 800;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+    width: calc(100% - 28px);
+  }
+  #execute-btn:hover { background: rgba(255,51,51,0.28); box-shadow: 0 0 16px rgba(255,51,51,0.3); }
+  #execute-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  #execute-btn.resolved {
+    background: var(--cyan-dim);
+    border-color: var(--cyan);
+    color: var(--cyan);
+  }
+
+  /* INJECT PANEL */
+  #inject-panel { flex: 1; overflow-y: auto; padding: 0; }
+  #inject-panel::-webkit-scrollbar { width: 3px; }
+  #inject-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); }
+  .inject-form { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+  .if-group { display: flex; flex-direction: column; gap: 4px; }
+  .if-label { font-size: 9px; color: var(--dim); letter-spacing: 2px; text-transform: uppercase; }
+  .if-input {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 7px 10px;
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 11px;
+    outline: none;
+    transition: border-color 0.2s;
+    width: 100%;
+  }
+  .if-input:focus { border-color: var(--cyan); box-shadow: 0 0 8px rgba(0,240,255,0.15); }
+  .if-input::placeholder { color: rgba(255,255,255,0.2); }
+  .if-slider-row { display: flex; align-items: center; gap: 10px; }
+  .if-slider {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 2px;
+    background: rgba(255,255,255,0.1);
+    outline: none;
+    border-radius: 2px;
+  }
+  .if-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--cyan);
+    cursor: pointer;
+    box-shadow: 0 0 6px var(--cyan);
+  }
+  .if-slider-val { font-size: 10px; color: var(--cyan); min-width: 46px; text-align: right; }
+  #inject-btn {
+    padding: 10px;
+    background: var(--green-dim);
+    border: 1px solid var(--green);
+    border-radius: 4px;
+    color: var(--green);
+    font-family: var(--font);
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+  }
+  #inject-btn:hover { background: rgba(0,255,102,0.2); box-shadow: 0 0 12px rgba(0,255,102,0.25); }
+  #airport-preview {
+    font-size: 9px; color: var(--cyan);
+    padding: 4px 0;
+    min-height: 16px;
+    letter-spacing: 1px;
+  }
+
+  /* STATUSBAR */
+  #statusbar {
+    grid-column: 1 / -1; grid-row: 3;
+    background: rgba(5,5,5,0.95);
+    border-top: 1px solid var(--border);
+    display: flex; align-items: center;
+    padding: 0 20px; gap: 20px;
+    font-size: 9px; color: var(--dim);
+    letter-spacing: 1px;
+    backdrop-filter: var(--blur);
+    z-index: 10;
+  }
+  .sb-item { display: flex; gap: 6px; align-items: center; }
+  .sb-val { color: var(--text); }
+  .sb-sep { color: rgba(255,255,255,0.12); }
+  #sb-conflict-zone { color: var(--red); display: none; animation: blink 0.5s infinite; }
+  #sb-conflict-zone.show { display: block; }
+  #sb-resolved { color: var(--cyan); display: none; }
+  #sb-resolved.show { display: block; }
+
+  /* SCROLLBAR hide for main */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+  /* Scanline overlay */
+  #scanlines {
+    position: fixed; inset: 0; z-index: 9998; pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.03) 2px,
+      rgba(0,0,0,0.03) 4px
+    );
+    opacity: 0.6;
+  }
+
+  /* Corner decorators */
+  .corner-deco {
+    position: absolute;
+    width: 14px; height: 14px;
+    border-color: rgba(255,255,255,0.2);
+    border-style: solid;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .corner-deco.tl { top: 8px; left: 8px; border-width: 1px 0 0 1px; }
+  .corner-deco.tr { top: 8px; right: 8px; border-width: 1px 1px 0 0; }
+  .corner-deco.bl { bottom: 8px; left: 8px; border-width: 0 0 1px 1px; }
+  .corner-deco.br { bottom: 8px; right: 8px; border-width: 0 1px 1px 0; }
+</style>
+</head>
+<body>
+
+<!-- SCANLINES -->
+<div id="scanlines"></div>
+
+<!-- INTRO OVERLAY -->
+<div id="intro-overlay">
+  <div class="split-flap-title" id="sf-title"></div>
+  <div class="intro-log" id="intro-log"></div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <!-- TOPBAR -->
+  <div id="topbar">
+    <div class="topbar-logo">KINETIC</div>
+    <div class="topbar-sep"></div>
+    <div class="topbar-label">SYS</div>
+    <div class="topbar-val">GLOBAL AIRSPACE AI v4.7.2</div>
+    <div class="topbar-sep"></div>
+    <div class="topbar-label">TRACKING</div>
+    <div class="topbar-val" id="tb-tracking">0 VECTORS</div>
+    <div class="topbar-sep"></div>
+    <div class="topbar-label">REGION</div>
+    <div class="topbar-val">GLOBAL // ALL SECTORS</div>
+    <div class="topbar-spacer"></div>
+    <div id="sb-conflict-zone" class="show" style="display:none;font-size:10px;letter-spacing:2px;">⬡ CONFLICT ACTIVE</div>
+    <div id="sb-resolved" style="display:none;font-size:10px;letter-spacing:2px;color:var(--cyan);">✓ CONFLICT RESOLVED</div>
+    <div class="status-dot" id="status-dot"></div>
+    <div id="topbar-clock">--:--:-- UTC</div>
+  </div>
+
+  <!-- LEFT PANEL -->
+  <div id="left-panel">
+    <div class="panel-header"><div class="dot"></div>ACTIVE TELEMETRY STREAM</div>
+    <div id="telemetry-stream"></div>
+    <div id="active-flights">
+      <div class="panel-header" style="border-top:1px solid var(--border);"><div class="dot"></div>TRACKED FLIGHTS</div>
+    </div>
+  </div>
+
+  <!-- GLOBE -->
+  <div id="globe-container">
+    <div class="corner-deco tl"></div>
+    <div class="corner-deco tr"></div>
+    <div class="corner-deco bl"></div>
+    <div class="corner-deco br"></div>
+    <canvas id="globe-canvas"></canvas>
+    <!-- CONFLICT HUD -->
+    <div id="conflict-hud">
+      <div class="hud-label">TCAS AI // CONFLICT ENGINE</div>
+      <div class="hud-title" id="conflict-title">CRITICAL AIRSPACE CONFLICT DETECTED<br>COLLISION RISK: 94.2%</div>
+      <div class="hud-risk" id="conflict-risk">⚠ 94.2%</div>
+      <div class="hud-sub" id="conflict-sub">AA-742 ↔ SX-X9 // PROXIMITY: <span id="conflict-dist">0.0</span> NM // T-MINUS: <span id="conflict-time">00:00</span></div>
+    </div>
+    <!-- HOVER HUD -->
+    <div id="hover-hud">
+      <div class="hh-title" id="hh-id">FL-XXX</div>
+      <div class="hh-row"><span class="hh-key">LAT/LON</span><span class="hh-val" id="hh-pos">--°N --°W</span></div>
+      <div class="hh-row"><span class="hh-key">ALTITUDE</span><span class="hh-val" id="hh-alt">FL---</span></div>
+      <div class="hh-row"><span class="hh-key">GND SPEED</span><span class="hh-val" id="hh-spd">--- KTS</span></div>
+      <div class="hh-row"><span class="hh-key">HEADING</span><span class="hh-val" id="hh-hdg">---°</span></div>
+      <div class="hh-row"><span class="hh-key">DEST</span><span class="hh-val" id="hh-dest">---</span></div>
+      <div class="hh-row"><span class="hh-key">ETA</span><span class="hh-val" id="hh-eta">--h --m</span></div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div id="right-panel">
+    <div class="panel-header"><div class="dot" style="background:var(--red);box-shadow:0 0 4px var(--red);"></div>AI EVASIVE GUIDANCE</div>
+    <div id="ai-panel">
+      <div class="ai-step" id="step1">
+        <span class="ai-step-num">STEP 01</span>
+        <span class="ai-step-title">[COMMAND INITIALIZED]</span>
+        <div class="ai-step-desc">Request immediate manual override authority.<br>ATC clearance: EMERGENCY LEVEL ALPHA.</div>
+      </div>
+      <div class="ai-step" id="step2">
+        <span class="ai-step-num">STEP 02</span>
+        <span class="ai-step-title">[VECTOR CORRECTION]</span>
+        <div class="ai-step-desc">Command AA-742 → hard bank LEFT<br>Heading: 280° · Descend to: FL310<br>Rate of descent: 2,500 ft/min</div>
+      </div>
+      <div class="ai-step" id="step3">
+        <span class="ai-step-num">STEP 03</span>
+        <span class="ai-step-title">[ASCENT RE-ROUTING]</span>
+        <div class="ai-step-desc">Signal SX-X9 → FREEZE lateral orientation<br>Hold velocity: MACH 0.82 · Maintain FL350<br>Separation guaranteed: +12.4 NM</div>
+      </div>
+      <button id="execute-btn" onclick="executeEvasion()">⚡ EXECUTE AI ESCAPE MANEUVER</button>
+    </div>
+
+    <div class="panel-header" style="border-top:1px solid var(--border);margin-top:0;">
+      <div class="dot" style="background:var(--cyan);box-shadow:0 0 4px var(--cyan);"></div>
+      VECTOR INJECTOR
+    </div>
+    <div id="inject-panel">
+      <div class="inject-form">
+        <div class="if-group">
+          <div class="if-label">Flight ID</div>
+          <input class="if-input" id="inj-id" type="text" placeholder="e.g. UA-881" maxlength="8" />
+        </div>
+        <div class="if-group">
+          <div class="if-label">Origin IATA</div>
+          <input class="if-input" id="inj-origin" type="text" placeholder="e.g. JFK" maxlength="3" style="text-transform:uppercase;" oninput="previewAirport(this,'origin')" />
+          <div id="airport-origin-preview" class="airport-preview" style="font-size:9px;color:var(--dim);padding:2px 0;"></div>
+        </div>
+        <div class="if-group">
+          <div class="if-label">Destination IATA</div>
+          <input class="if-input" id="inj-dest" type="text" placeholder="e.g. LHR" maxlength="3" style="text-transform:uppercase;" oninput="previewAirport(this,'dest')" />
+          <div id="airport-dest-preview" class="airport-preview" style="font-size:9px;color:var(--cyan);padding:2px 0;"></div>
+        </div>
+        <div class="if-group">
+          <div class="if-label">Altitude (FL) · <span id="alt-val" style="color:var(--cyan);">350</span></div>
+          <div class="if-slider-row">
+            <input class="if-slider" type="range" id="inj-alt" min="180" max="450" value="350" step="10" oninput="document.getElementById('alt-val').textContent=this.value" />
+          </div>
+        </div>
+        <div class="if-group">
+          <div class="if-label">Speed (KTS) · <span id="spd-val" style="color:var(--cyan);">480</span></div>
+          <div class="if-slider-row">
+            <input class="if-slider" type="range" id="inj-spd" min="200" max="600" value="480" step="10" oninput="document.getElementById('spd-val').textContent=this.value" />
+          </div>
+        </div>
+        <button id="inject-btn" onclick="injectFlight()">+ INJECT VECTOR</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATUSBAR -->
+  <div id="statusbar">
+    <div class="sb-item">KINETIC <span class="sb-val">v4.7.2</span></div>
+    <div class="sb-sep">|</div>
+    <div class="sb-item">SECTORS <span class="sb-val">ALL</span></div>
+    <div class="sb-sep">|</div>
+    <div class="sb-item">CONFLICTS <span class="sb-val" id="sb-conflicts">0</span></div>
+    <div class="sb-sep">|</div>
+    <div class="sb-item">AI ENGINE <span class="sb-val" style="color:var(--green);">ACTIVE</span></div>
+    <div class="sb-sep">|</div>
+    <div class="sb-item">TCAS <span class="sb-val" style="color:var(--green);">ARMED</span></div>
+    <div style="flex:1"></div>
+    <div class="sb-item">© KINETIC SYSTEMS INC. // SIMULATED ENVIRONMENT</div>
+  </div>
+</div>
+
+<!-- THREE.JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ─────────────────────────────────────────────────────────
+//  AIRPORT DATABASE
+// ─────────────────────────────────────────────────────────
+const AIRPORTS = {
+  BOS: { name: 'Boston Logan Intl', lat: 42.36, lon: -71.00 },
+  JFK: { name: 'New York JFK Intl', lat: 40.64, lon: -73.77 },
+  LHR: { name: 'London Heathrow', lat: 51.47, lon: -0.45 },
+  NRT: { name: 'Tokyo Narita Intl', lat: 35.77, lon: 140.39 },
+  LAX: { name: 'Los Angeles Intl', lat: 33.94, lon: -118.40 },
+  SFO: { name: 'San Francisco Intl', lat: 37.62, lon: -122.38 },
+  CDG: { name: 'Paris Charles de Gaulle', lat: 49.01, lon: 2.55 },
+  DXB: { name: 'Dubai Intl', lat: 25.25, lon: 55.36 },
+  SYD: { name: 'Sydney Kingsford Smith', lat: -33.94, lon: 151.18 },
+  GRU: { name: 'São Paulo Guarulhos', lat: -23.43, lon: -46.47 },
+  ORD: { name: "Chicago O'Hare Intl", lat: 41.97, lon: -87.91 },
+  AMS: { name: 'Amsterdam Schiphol', lat: 52.31, lon: 4.76 },
+  FRA: { name: 'Frankfurt Main', lat: 50.03, lon: 8.57 },
+  ICN: { name: 'Seoul Incheon Intl', lat: 37.46, lon: 126.44 },
+  DEL: { name: 'New Delhi Indira Gandhi', lat: 28.56, lon: 77.10 },
+  BOM: { name: 'Mumbai Chhatrapati Shivaji', lat: 19.09, lon: 72.87 },
+  PEK: { name: 'Beijing Capital Intl', lat: 40.08, lon: 116.58 },
+  HKG: { name: 'Hong Kong Intl', lat: 22.31, lon: 113.91 },
+  MEX: { name: 'Mexico City Benito Juárez', lat: 19.44, lon: -99.07 },
+  MAD: { name: 'Madrid Barajas', lat: 40.47, lon: -3.57 },
+};
+
+// ─────────────────────────────────────────────────────────
+//  UTILITIES
+// ─────────────────────────────────────────────────────────
+function latLonToVec3(lat, lon, radius) {
+  const phi = (90 - lat) * Math.PI / 180;
+  const theta = (lon + 180) * Math.PI / 180;
+  return new THREE.Vector3(
+    -radius * Math.sin(phi) * Math.cos(theta),
+     radius * Math.cos(phi),
+     radius * Math.sin(phi) * Math.sin(theta)
+  );
+}
+
+function greatCirclePoints(latA, lonA, latB, lonB, segments, radius) {
+  const start = latLonToVec3(latA, lonA, radius);
+  const end   = latLonToVec3(latB, lonB, radius);
+  const pts = [];
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments;
+    const v = new THREE.Vector3().lerpVectors(start, end, t).normalize().multiplyScalar(radius);
+    pts.push(v);
+  }
+  return pts;
+}
+
+function vec3ToLatLon(v) {
+  const r = v.length();
+  const lat = 90 - Math.acos(v.y / r) * 180 / Math.PI;
+  let lon = Math.atan2(v.z, -v.x) * 180 / Math.PI - 180;
+  if (lon < -180) lon += 360;
+  return { lat, lon };
+}
+
+function randomAirport(exclude) {
+  const keys = Object.keys(AIRPORTS).filter(k => k !== exclude);
+  return keys[Math.floor(Math.random() * keys.length)];
+}
+
+function fmtCoord(lat, lon) {
+  const la = Math.abs(lat).toFixed(2) + (lat >= 0 ? '°N' : '°S');
+  const lo = Math.abs(lon).toFixed(2) + (lon >= 0 ? '°E' : '°W');
+  return `${la} ${lo}`;
+}
+
+function pad2(n) { return String(n).padStart(2,'0'); }
+
+// ─────────────────────────────────────────────────────────
+//  SPLIT-FLAP INTRO
+// ─────────────────────────────────────────────────────────
+const SF_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/█▓░ ';
+const TARGET_TEXT = 'KINETIC // GLOBAL AIRSPACE AI';
+
+function buildSplitFlap() {
+  const container = document.getElementById('sf-title');
+  const chars = TARGET_TEXT.split('');
+  chars.forEach((ch, i) => {
+    const el = document.createElement('span');
+    el.classList.add('sf-char');
+    if (ch === ' ') el.classList.add('space');
+    if (ch === '/') el.classList.add('slash');
+    el.dataset.target = ch;
+    el.dataset.index = i;
+    el.textContent = SF_CHARS[Math.floor(Math.random() * SF_CHARS.length)];
+    container.appendChild(el);
+  });
+}
+
+function animateSplitFlap() {
+  return new Promise(resolve => {
+    const els = document.querySelectorAll('.sf-char:not(.space)');
+    let completed = 0;
+    els.forEach((el, i) => {
+      const target = el.dataset.target;
+      const delay = i * 60;
+      const cycles = 8 + Math.floor(Math.random() * 6);
+      let count = 0;
+      setTimeout(() => {
+        const iv = setInterval(() => {
+          if (count >= cycles) {
+            clearInterval(iv);
+            el.textContent = target;
+            if (target === '/') el.style.color = '#00ff66';
+            else el.style.color = '#ffffff';
+            completed++;
+            if (completed === els.length) resolve();
+            return;
+          }
+          el.textContent = SF_CHARS[Math.floor(Math.random() * SF_CHARS.length)];
+          el.style.color = `hsl(${Math.random()*30+100}, 20%, ${40+count*5}%)`;
+          count++;
+        }, 50);
+      }, delay);
+    });
+  });
+}
+
+const LOG_LINES = [
+  { cls: 'log-green', text: '[BOOT] KINETIC SYSTEM KERNEL v4.7.2 LOADED' },
+  { cls: '', text: '[INIT] Allocating tactical matrix buffer... 512MB' },
+  { cls: 'log-cyan', text: '[NET]  Establishing satellite uplink... OK' },
+  { cls: '', text: '[DB]   Loading IATA airport coordinate database... 20 entries' },
+  { cls: 'log-green', text: '[3D]   Three.js r128 renderer context initialized' },
+  { cls: '', text: '[GEO]  Projecting geodesic sphere R=1.0 units' },
+  { cls: 'log-cyan', text: '[TCAS] Collision Avoidance Engine: ARMED' },
+  { cls: '', text: '[AI]   Loading evasive maneuver neural weights... OK' },
+  { cls: 'log-green', text: '[TRACK] Seeding 8 initial flight vectors...' },
+  { cls: '', text: '[WARN] AA-742 and SX-X9 on converging trajectories' },
+  { cls: 'log-red', text: '[CRITICAL] T-15s to proximity threshold breach' },
+  { cls: 'log-green', text: '[READY] KINETIC AIRSPACE AI — ONLINE' },
+];
+
+async function runIntroLog() {
+  const container = document.getElementById('intro-log');
+  for (const line of LOG_LINES) {
+    await new Promise(res => setTimeout(res, 140));
+    const el = document.createElement('div');
+    el.className = `intro-log-line ${line.cls}`;
+    el.textContent = line.text;
+    container.appendChild(el);
+    container.scrollTop = container.scrollHeight;
+  }
+}
+
+async function runIntro() {
+  buildSplitFlap();
+  await new Promise(r => setTimeout(r, 300));
+  await Promise.all([animateSplitFlap(), runIntroLog()]);
+  await new Promise(r => setTimeout(r, 600));
+  const overlay = document.getElementById('intro-overlay');
+  overlay.classList.add('fade-out');
+  setTimeout(() => {
+    overlay.style.display = 'none';
+    document.getElementById('app').classList.add('visible');
+    startApp();
+  }, 700);
+}
+
+// ─────────────────────────────────────────────────────────
+//  THREE.JS GLOBE
+// ─────────────────────────────────────────────────────────
+let scene, camera, renderer, globeMesh, wireframe;
+let isDragging = false, prevMouse = { x: 0, y: 0 };
+let rotVelX = 0, rotVelY = 0;
+let currentHover = null;
+const GLOBE_R = 1.6;
+const ARC_HEIGHT = 0.12;
+
+// Flight state
+const flights = [];
+let conflictResolved = false;
+let conflictTriggered = false;
+let conflictTimer = 0;
+
+function initThree() {
+  const canvas = document.getElementById('globe-canvas');
+  const container = document.getElementById('globe-container');
+
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setClearColor(0x000000, 0);
+
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+  camera.position.set(0, 0, 4.2);
+
+  // Resize
+  function resize() {
+    const w = container.clientWidth, h = container.clientHeight;
+    renderer.setSize(w, h);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // Globe sphere
+  const geoSphere = new THREE.SphereGeometry(GLOBE_R, 64, 64);
+  const matSphere = new THREE.MeshPhongMaterial({
+    color: 0x050d14,
+    emissive: 0x020608,
+    specular: 0x111111,
+    shininess: 20,
+    transparent: true,
+    opacity: 0.92,
+  });
+  globeMesh = new THREE.Mesh(geoSphere, matSphere);
+  scene.add(globeMesh);
+
+  // Wireframe lat/lon lines
+  const wfMat = new THREE.LineBasicMaterial({ color: 0x00ff66, transparent: true, opacity: 0.12 });
+  const wfGroup = new THREE.Group();
+
+  // Latitude lines
+  for (let lat = -75; lat <= 75; lat += 15) {
+    const pts = [];
+    for (let lon = 0; lon <= 360; lon += 4) {
+      pts.push(latLonToVec3(lat, lon - 180, GLOBE_R * 1.001));
+    }
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    wfGroup.add(new THREE.Line(geo, wfMat));
+  }
+  // Longitude lines
+  for (let lon = 0; lon < 360; lon += 15) {
+    const pts = [];
+    for (let lat = -90; lat <= 90; lat += 3) {
+      pts.push(latLonToVec3(lat, lon - 180, GLOBE_R * 1.001));
+    }
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    wfGroup.add(new THREE.Line(geo, wfMat));
+  }
+  scene.add(wfGroup);
+
+  // Continent dots
+  const dotMat = new THREE.PointsMaterial({ color: 0x00ff66, size: 0.008, transparent: true, opacity: 0.3 });
+  const continentPoints = generateContinentDots();
+  const dotGeo = new THREE.BufferGeometry().setFromPoints(continentPoints);
+  scene.add(new THREE.Points(dotGeo, dotMat));
+
+  // Equator ring
+  const eqPts = [];
+  for (let lon = 0; lon <= 360; lon += 1) eqPts.push(latLonToVec3(0, lon - 180, GLOBE_R * 1.002));
+  const eqGeo = new THREE.BufferGeometry().setFromPoints(eqPts);
+  scene.add(new THREE.Line(eqGeo, new THREE.LineBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.15 })));
+
+  // Lights
+  scene.add(new THREE.AmbientLight(0x111111));
+  const dirLight = new THREE.DirectionalLight(0x00ff66, 0.3);
+  dirLight.position.set(5, 5, 5);
+  scene.add(dirLight);
+  const rimLight = new THREE.DirectionalLight(0x00f0ff, 0.15);
+  rimLight.position.set(-5, -2, -5);
+  scene.add(rimLight);
+
+  // Mouse interaction
+  canvas.addEventListener('mousedown', e => {
+    isDragging = true;
+    prevMouse = { x: e.clientX, y: e.clientY };
+    rotVelX = rotVelY = 0;
+  });
+  window.addEventListener('mouseup', () => { isDragging = false; });
+  canvas.addEventListener('mousemove', onMouseMove);
+  canvas.addEventListener('wheel', e => {
+    camera.position.z = Math.max(2.5, Math.min(8, camera.position.z + e.deltaY * 0.005));
+    e.preventDefault();
+  }, { passive: false });
+
+  animate();
+}
+
+function generateContinentDots() {
+  // Rough continent point clouds using simplified geographic regions
+  const dots = [];
+  const continentRegions = [
+    // North America
+    { latMin: 25, latMax: 70, lonMin: -140, lonMax: -60, density: 0.18 },
+    // South America
+    { latMin: -55, latMax: 15, lonMin: -80, lonMax: -35, density: 0.16 },
+    // Europe
+    { latMin: 35, latMax: 70, lonMin: -10, lonMax: 40, density: 0.22 },
+    // Africa
+    { latMin: -35, latMax: 37, lonMin: -18, lonMax: 52, density: 0.18 },
+    // Asia (West)
+    { latMin: 15, latMax: 55, lonMin: 40, lonMax: 95, density: 0.16 },
+    // Asia (East)
+    { latMin: 10, latMax: 55, lonMin: 95, lonMax: 145, density: 0.18 },
+    // Australia
+    { latMin: -40, latMax: -10, lonMin: 113, lonMax: 153, density: 0.20 },
+  ];
+
+  for (const r of continentRegions) {
+    const latRange = r.latMax - r.latMin;
+    const lonRange = r.lonMax - r.lonMin;
+    const count = Math.floor(latRange * lonRange * r.density);
+    for (let i = 0; i < count; i++) {
+      const lat = r.latMin + Math.random() * latRange;
+      const lon = r.lonMin + Math.random() * lonRange;
+      dots.push(latLonToVec3(lat, lon, GLOBE_R * 1.0015));
+    }
+  }
+  return dots;
+}
+
+function onMouseMove(e) {
+  const canvas = document.getElementById('globe-canvas');
+  const rect = canvas.getBoundingClientRect();
+
+  if (isDragging) {
+    const dx = e.clientX - prevMouse.x;
+    const dy = e.clientY - prevMouse.y;
+    rotVelY = dx * 0.008;
+    rotVelX = dy * 0.008;
+    globeMesh.parent.rotation.y += rotVelY;
+    globeMesh.parent.rotation.x += rotVelX;
+    // Rotate the whole scene group
+    scene.rotation.y += dx * 0.008;
+    scene.rotation.x += dy * 0.008;
+    prevMouse = { x: e.clientX, y: e.clientY };
+  }
+
+  // Hover detection via raycasting
+  const mouse = new THREE.Vector2(
+    ((e.clientX - rect.left) / rect.width) * 2 - 1,
+    -((e.clientY - rect.top) / rect.height) * 2 + 1
+  );
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera(mouse, camera);
+
+  let closestFlight = null;
+  let closestDist = Infinity;
+
+  for (const fl of flights) {
+    if (!fl.markerMesh) continue;
+    const intersects = raycaster.intersectObject(fl.markerMesh);
+    if (intersects.length > 0 && intersects[0].distance < closestDist) {
+      closestDist = intersects[0].distance;
+      closestFlight = fl;
+    }
+  }
+
+  const hud = document.getElementById('hover-hud');
+  if (closestFlight) {
+    currentHover = closestFlight;
+    const pos = vec3ToLatLon(closestFlight.currentPos);
+    document.getElementById('hh-id').textContent = closestFlight.id;
+    document.getElementById('hh-pos').textContent = fmtCoord(pos.lat, pos.lon);
+    document.getElementById('hh-alt').textContent = `FL${closestFlight.alt}`;
+    document.getElementById('hh-spd').textContent = `${closestFlight.speed} KTS`;
+    document.getElementById('hh-hdg').textContent = `${closestFlight.heading}°`;
+    document.getElementById('hh-dest').textContent = closestFlight.destCode || '---';
+    document.getElementById('hh-eta').textContent = closestFlight.eta;
+    hud.style.left = (e.clientX - rect.left + 18) + 'px';
+    hud.style.top  = (e.clientY - rect.top  - 40) + 'px';
+    hud.classList.add('show');
+  } else {
+    currentHover = null;
+    hud.classList.remove('show');
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+//  FLIGHT MANAGEMENT
+// ─────────────────────────────────────────────────────────
+let flightIdCounter = 0;
+
+function createFlight({ id, originCode, destCode, alt, speed, isConflict = false, color = 0x00ff66 }) {
+  const origin = AIRPORTS[originCode] || AIRPORTS[randomAirport()];
+  const dest   = AIRPORTS[destCode]   || AIRPORTS[randomAirport(originCode)];
+
+  const arcPts = greatCirclePoints(origin.lat, origin.lon, dest.lat, dest.lon, 120, GLOBE_R * 1.02);
+  const arcGeo = new THREE.BufferGeometry().setFromPoints(arcPts);
+  const arcMat = new THREE.LineBasicMaterial({
+    color,
+    transparent: true,
+    opacity: isConflict ? 0.9 : 0.55,
+    linewidth: 1,
+  });
+  const arcLine = new THREE.Line(arcGeo, arcMat);
+  scene.add(arcLine);
+
+  // Marker sphere
+  const markerGeo = new THREE.SphereGeometry(0.028, 8, 8);
+  const markerMat = new THREE.MeshBasicMaterial({ color });
+  const markerMesh = new THREE.Mesh(markerGeo, markerMat);
+  markerMesh.position.copy(arcPts[0]);
+  scene.add(markerMesh);
+
+  // Glow halo
+  const haloGeo = new THREE.SphereGeometry(0.045, 8, 8);
+  const haloMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.18, wireframe: true });
+  const haloMesh = new THREE.Mesh(haloGeo, haloMat);
+  scene.add(haloMesh);
+
+  const fl = {
+    id, originCode, destCode, alt, speed,
+    arcPts, arcLine, arcMat, markerMesh, haloMesh,
+    progress: Math.random() * 0.15,
+    baseColor: color,
+    isConflict,
+    currentPos: new THREE.Vector3().copy(arcPts[0]),
+    heading: Math.floor(Math.random() * 360),
+    eta: `${Math.floor(Math.random()*8+1)}h ${Math.floor(Math.random()*59)}m`,
+    originalArcPts: arcPts.slice(),
+  };
+  flights.push(fl);
+  updateFlightList();
+  return fl;
+}
+
+function updateFlightList() {
+  const container = document.getElementById('active-flights');
+  // Remove existing items
+  const items = container.querySelectorAll('.flight-item');
+  items.forEach(el => el.remove());
+
+  for (const fl of flights) {
+    const div = document.createElement('div');
+    div.className = 'flight-item' + (fl.isConflict && !conflictResolved ? ' conflict' : '');
+    div.innerHTML = `
+      <div>
+        <div class="fi-id">${fl.id}</div>
+        <div class="fi-dest">${fl.originCode || '???'} → ${fl.destCode || '???'}</div>
+      </div>
+      <div class="fi-status ${fl.isConflict && !conflictResolved ? 'alert' : conflictResolved && fl.isConflict ? 'resolved' : 'ok'}">
+        ${fl.isConflict && !conflictResolved ? 'CONFLICT' : conflictResolved && fl.isConflict ? 'RESOLVED' : 'NOMINAL'}
+      </div>
+    `;
+    container.appendChild(div);
+  }
+  document.getElementById('tb-tracking').textContent = `${flights.length} VECTORS`;
+}
+
+// ─────────────────────────────────────────────────────────
+//  ANIMATION LOOP
+// ─────────────────────────────────────────────────────────
+let frameCount = 0;
+let appStartTime = Date.now();
+
+function animate() {
+  requestAnimationFrame(animate);
+  frameCount++;
+
+  // Inertial rotation
+  if (!isDragging) {
+    scene.rotation.y += 0.0008 + rotVelY * 0.95;
+    rotVelY *= 0.92;
+    rotVelX *= 0.92;
+  }
+
+  // Update flights
+  for (const fl of flights) {
+    fl.progress += (fl.speed / 800000);
+    if (fl.progress > 1) fl.progress = 0;
+
+    const idx = Math.floor(fl.progress * (fl.arcPts.length - 1));
+    const pt = fl.arcPts[Math.min(idx, fl.arcPts.length - 1)];
+    fl.currentPos.copy(pt);
+    fl.markerMesh.position.copy(pt);
+    fl.haloMesh.position.copy(pt);
+    fl.haloMesh.rotation.y += 0.05;
+
+    // Update heading dynamically
+    if (idx < fl.arcPts.length - 2) {
+      const next = fl.arcPts[idx + 1];
+      const dir = new THREE.Vector3().subVectors(next, pt).normalize();
+      const angle = Math.atan2(dir.x, dir.z) * 180 / Math.PI;
+      fl.heading = ((angle + 360) % 360).toFixed(0);
+    }
+  }
+
+  // Conflict logic
+  const elapsed = (Date.now() - appStartTime) / 1000;
+  const aa = flights.find(f => f.id === 'AA-742');
+  const sx = flights.find(f => f.id === 'SX-X9');
+
+  if (aa && sx && !conflictResolved) {
+    const dist = aa.currentPos.distanceTo(sx.currentPos);
+    const proximity = (dist / GLOBE_R).toFixed(2);
+    document.getElementById('conflict-dist').textContent = (dist * 200).toFixed(1);
+
+    if (!conflictTriggered && elapsed > 6) {
+      conflictTriggered = true;
+      triggerConflict();
+    }
+
+    if (conflictTriggered) {
+      // Flash colors
+      const flash = Math.sin(frameCount * 0.35) > 0;
+      aa.arcMat.color.setHex(flash ? 0xff3333 : 0xff8800);
+      sx.arcMat.color.setHex(flash ? 0xff3333 : 0xff8800);
+      aa.markerMesh.material.color.setHex(flash ? 0xff3333 : 0xffffff);
+      sx.markerMesh.material.color.setHex(flash ? 0xff3333 : 0xffffff);
+    }
+  }
+
+  renderer.render(scene, camera);
+}
+
+// ─────────────────────────────────────────────────────────
+//  CONFLICT ENGINE
+// ─────────────────────────────────────────────────────────
+function triggerConflict() {
+  document.getElementById('conflict-hud').classList.add('show');
+  document.getElementById('ai-panel').classList.add('open');
+  document.getElementById('status-dot').classList.add('red');
+  document.getElementById('sb-conflict-zone').style.display = 'block';
+  document.getElementById('sb-conflicts').textContent = '1';
+  updateFlightList();
+
+  // Countdown timer
+  let t = 15;
+  const iv = setInterval(() => {
+    if (conflictResolved) { clearInterval(iv); return; }
+    t = Math.max(0, t - 1);
+    const m = pad2(Math.floor(t / 60));
+    const s = pad2(t % 60);
+    document.getElementById('conflict-time').textContent = `${m}:${s}`;
+    if (t === 0) clearInterval(iv);
+  }, 1000);
+}
+
+function executeEvasion() {
+  if (conflictResolved) return;
+  conflictResolved = true;
+
+  const btn = document.getElementById('execute-btn');
+  btn.disabled = true;
+  btn.textContent = '⟳ EXECUTING...';
+
+  // Mark steps done sequentially
+  const steps = [document.getElementById('step1'), document.getElementById('step2'), document.getElementById('step3')];
+  steps.forEach((s, i) => {
+    setTimeout(() => {
+      s.classList.add('done');
+      s.querySelector('.ai-step-num').style.color = 'var(--cyan)';
+    }, i * 500);
+  });
+
+  const aa = flights.find(f => f.id === 'AA-742');
+  const sx = flights.find(f => f.id === 'SX-X9');
+
+  // Bend AA-742 arc — reroute towards BOS at lower lat
+  if (aa) {
+    const newDest = AIRPORTS['BOS'];
+    const originLL = vec3ToLatLon(aa.currentPos);
+    const newArc = greatCirclePoints(originLL.lat, originLL.lon - 15, newDest.lat - 8, newDest.lon, 80, GLOBE_R * 1.02);
+    aa.arcPts = newArc;
+    const newGeo = new THREE.BufferGeometry().setFromPoints(newArc);
+    aa.arcLine.geometry.dispose();
+    aa.arcLine.geometry = newGeo;
+    aa.progress = 0.02;
+  }
+
+  // SX-X9 freezes lateral, continues on slightly altered path
+  if (sx) {
+    const originLL = vec3ToLatLon(sx.currentPos);
+    const newArc = greatCirclePoints(originLL.lat + 8, originLL.lon + 20, -20, 140, 80, GLOBE_R * 1.02);
+    sx.arcPts = newArc;
+    const newGeo = new THREE.BufferGeometry().setFromPoints(newArc);
+    sx.arcLine.geometry.dispose();
+    sx.arcLine.geometry = newGeo;
+    sx.progress = 0.02;
+  }
+
+  setTimeout(() => {
+    // Restore colors to cyan (resolved)
+    if (aa) { aa.arcMat.color.setHex(0x00f0ff); aa.markerMesh.material.color.setHex(0x00f0ff); aa.isConflict = false; }
+    if (sx) { sx.arcMat.color.setHex(0x00f0ff); sx.markerMesh.material.color.setHex(0x00f0ff); sx.isConflict = false; }
+
+    // Update HUD to resolved
+    const hud = document.getElementById('conflict-hud');
+    hud.classList.add('resolved');
+    document.getElementById('conflict-title').textContent = 'TRAJECTORY AMENDED // RESOLVED\nSEPARATION SECURED: +12.4 NM';
+    document.getElementById('conflict-risk').textContent = '✓ SAFE';
+    document.getElementById('conflict-sub').textContent = 'AA-742 rerouted to FL310 // SX-X9 holding vector // AI ESCORT ACTIVE';
+
+    document.getElementById('status-dot').classList.remove('red');
+    document.getElementById('sb-conflict-zone').style.display = 'none';
+    document.getElementById('sb-resolved').style.display = 'block';
+    document.getElementById('sb-conflicts').textContent = '0';
+
+    btn.classList.add('resolved');
+    btn.disabled = false;
+    btn.textContent = '✓ MANEUVER EXECUTED';
+
+    updateFlightList();
+
+    // Auto-dismiss resolved HUD after 5s
+    setTimeout(() => { hud.classList.remove('show'); }, 5000);
+  }, 1600);
+}
+
+// ─────────────────────────────────────────────────────────
+//  AIRPORT PREVIEW
+// ─────────────────────────────────────────────────────────
+function previewAirport(input, type) {
+  const code = input.value.toUpperCase();
+  const previewId = type === 'origin' ? 'airport-origin-preview' : 'airport-dest-preview';
+  const el = document.getElementById(previewId);
+  if (code.length === 3 && AIRPORTS[code]) {
+    const a = AIRPORTS[code];
+    el.textContent = `▶ ${a.name} (${fmtCoord(a.lat, a.lon)})`;
+  } else {
+    el.textContent = code.length === 3 ? '⚠ UNKNOWN IATA CODE' : '';
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+//  FLIGHT INJECTION
+// ─────────────────────────────────────────────────────────
+function injectFlight() {
+  const idInput = document.getElementById('inj-id').value.trim().toUpperCase();
+  const originCode = document.getElementById('inj-origin').value.trim().toUpperCase();
+  const destCode   = document.getElementById('inj-dest').value.trim().toUpperCase();
+  const alt  = parseInt(document.getElementById('inj-alt').value);
+  const speed = parseInt(document.getElementById('inj-spd').value);
+
+  if (!idInput) { flashInput('inj-id'); return; }
+  const oc = AIRPORTS[originCode] ? originCode : randomAirport();
+  const dc = AIRPORTS[destCode]   ? destCode   : randomAirport(oc);
+
+  const colors = [0x00ff66, 0x00f0ff, 0xffcc00, 0xff9900, 0xcc88ff];
+  const color = colors[flights.length % colors.length];
+
+  createFlight({ id: idInput, originCode: oc, destCode: dc, alt, speed, color });
+  addTelemetryLine(`[INJECT] ${idInput}: ${oc}→${dc} FL${alt} ${speed}KTS`, 'log-green');
+
+  // Reset form
+  document.getElementById('inj-id').value = '';
+  document.getElementById('inj-origin').value = '';
+  document.getElementById('inj-dest').value = '';
+  document.getElementById('airport-origin-preview').textContent = '';
+  document.getElementById('airport-dest-preview').textContent = '';
+}
+
+function flashInput(id) {
+  const el = document.getElementById(id);
+  el.style.borderColor = 'var(--red)';
+  el.style.boxShadow = '0 0 8px rgba(255,51,51,0.4)';
+  setTimeout(() => { el.style.borderColor = ''; el.style.boxShadow = ''; }, 800);
+}
+
+// ─────────────────────────────────────────────────────────
+//  TELEMETRY STREAM
+// ─────────────────────────────────────────────────────────
+const TELEMETRY_MESSAGES = [
+  () => `[TRACK] ${randomFlightId()}: SECTOR ${randSector()} // FL${randFL()} // ${randKts()} KTS`,
+  () => `[NAV]  ${randomFlightId()}: WAYPOINT ${randWP()} ACQUIRED`,
+  () => `[TCAS] SEPARATION ${(Math.random()*20+5).toFixed(1)} NM — NOMINAL`,
+  () => `[WIND] SECTOR-${randSector()}: ${Math.floor(Math.random()*360)}° @ ${Math.floor(Math.random()*60+20)}KTS`,
+  () => `[METAR] SIGMET ACTIVE — REGION ${randRegion()}`,
+  () => `[ATC]  CLEARANCE GRANTED: ${randomFlightId()} DIRECT ${Object.keys(AIRPORTS)[Math.floor(Math.random()*20)]}`,
+  () => `[RDR]  SQUAWK ${randSquawk()} IDENTIFIED`,
+];
+
+function randomFlightId() {
+  const pfx = ['AA','UA','BA','LH','EK','QF','NH','SQ','DL','AF'];
+  return pfx[Math.floor(Math.random()*pfx.length)] + '-' + Math.floor(Math.random()*900+100);
+}
+function randFL() { return [280,310,330,350,370,390][Math.floor(Math.random()*6)]; }
+function randKts() { return Math.floor(Math.random()*120+400); }
+function randSector() { return ['A','B','C','D','E','F'][Math.floor(Math.random()*6)] + Math.floor(Math.random()*9+1); }
+function randWP() { const wp=['ALPHA','BRAVO','DELTA','FOXTROT','KILO','LIMA','ROMEO']; return wp[Math.floor(Math.random()*wp.length)]; }
+function randRegion() { const r=['NAT','PAC','EUR','AFR','MID','SEA']; return r[Math.floor(Math.random()*r.length)]; }
+function randSquawk() { return Math.floor(Math.random()*7777).toString().padStart(4,'0'); }
+
+function addTelemetryLine(text, cls = '') {
+  const stream = document.getElementById('telemetry-stream');
+  const now = new Date();
+  const ts = `${pad2(now.getUTCHours())}:${pad2(now.getUTCMinutes())}:${pad2(now.getUTCSeconds())}`;
+  const el = document.createElement('div');
+  el.className = `tstream-line ${cls}`;
+  el.innerHTML = `<span class="ts">${ts}</span>${text}`;
+  stream.appendChild(el);
+  // Keep max 80 lines
+  while (stream.children.length > 80) stream.removeChild(stream.firstChild);
+  stream.scrollTop = stream.scrollHeight;
+}
+
+// ─────────────────────────────────────────────────────────
+//  CLOCK
+// ─────────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  const h = pad2(now.getUTCHours());
+  const m = pad2(now.getUTCMinutes());
+  const s = pad2(now.getUTCSeconds());
+  document.getElementById('topbar-clock').textContent = `${h}:${m}:${s} UTC`;
+}
+
+// ─────────────────────────────────────────────────────────
+//  APP START
+// ─────────────────────────────────────────────────────────
+function startApp() {
+  initThree();
+
+  // Seed initial background flights
+  const bgFlights = [
+    { id: 'UA-301', originCode: 'JFK', destCode: 'LHR', alt: 350, speed: 490 },
+    { id: 'BA-112', originCode: 'LHR', destCode: 'JFK', alt: 370, speed: 510 },
+    { id: 'QF-009', originCode: 'SYD', destCode: 'LAX', alt: 390, speed: 520 },
+    { id: 'EK-241', originCode: 'DXB', destCode: 'NRT', alt: 350, speed: 480 },
+    { id: 'LH-400', originCode: 'FRA', destCode: 'ORD', alt: 360, speed: 495 },
+    { id: 'AF-447', originCode: 'CDG', destCode: 'GRU', alt: 350, speed: 500 },
+  ];
+  bgFlights.forEach(f => createFlight({ ...f, color: 0x00ff66 }));
+
+  // Conflict flights — on converging paths
+  createFlight({
+    id: 'AA-742',
+    originCode: 'BOS',
+    destCode: 'LAX',
+    alt: 350, speed: 440,
+    isConflict: true,
+    color: 0x00ff66,
+  });
+  createFlight({
+    id: 'SX-X9',
+    originCode: 'NRT',
+    destCode: 'JFK',
+    alt: 350, speed: 460,
+    isConflict: true,
+    color: 0x00ff66,
+  });
+
+  // Force conflict flights to converge mid-globe
+  const aa = flights.find(f => f.id === 'AA-742');
+  const sx = flights.find(f => f.id === 'SX-X9');
+  if (aa) aa.progress = 0.35;
+  if (sx) sx.progress = 0.42;
+
+  // Telemetry ticker
+  setInterval(() => {
+    const msg = TELEMETRY_MESSAGES[Math.floor(Math.random() * TELEMETRY_MESSAGES.length)];
+    addTelemetryLine(msg());
+  }, 1800);
+
+  // Clock
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  // Initial telemetry burst
+  for (let i = 0; i < 6; i++) {
+    setTimeout(() => {
+      addTelemetryLine(TELEMETRY_MESSAGES[i % TELEMETRY_MESSAGES.length]());
+    }, i * 200);
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+//  BOOT
+// ─────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  runIntro();
+});
+</script>
+</body>
+</html>
